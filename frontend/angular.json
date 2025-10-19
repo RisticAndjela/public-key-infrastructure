@@ -68,8 +68,8 @@
           "defaultConfiguration": "development",
           "options": {
             "ssl": true,
-            "sslKey": "ssl/client-nopass.key",
-            "sslCert": "ssl/client.crt",
+            "sslKey": "ssl/localhost-key.pem",
+            "sslCert": "ssl/localhost.pem",
             "port": 4200
           }
         },
