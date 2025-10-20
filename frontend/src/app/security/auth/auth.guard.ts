@@ -1,16 +1,19 @@
 import { Injectable } from '@angular/core';
-import { CanActivate, ActivatedRouteSnapshot, RouterStateSnapshot, Router } from '@angular/router';
-import { KeycloakService } from '../keycloak/keycloak.service';
+import { CanActivate, Router } from '@angular/router';
+import { AuthService } from './auth.service';
 
 @Injectable({ providedIn: 'root' })
-export class AuthGuard implements CanActivate {
-  constructor(private keycloak: KeycloakService, private router: Router) {}
+export class AccessGuard implements CanActivate {
+  constructor(private auth: AuthService, private router: Router) {}
 
   canActivate(): boolean {
-    if (!this.keycloak.isLoggedIn()) {
-      this.keycloak.login();
+    const hasSession = this.auth.isLoggedIn();
+
+    if (!hasSession) {
+      this.auth.login();
       return false;
     }
+
     return true;
   }
 }

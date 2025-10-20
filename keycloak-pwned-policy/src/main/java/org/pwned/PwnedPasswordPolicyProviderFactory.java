@@ -13,6 +13,7 @@ public class PwnedPasswordPolicyProviderFactory implements PasswordPolicyProvide
 
     @Override
     public PasswordPolicyProvider create(KeycloakSession keycloakSession) {
+        // Use default config or implement logic to fetch config if needed
         int maxOccurrences = DEFAULT_MAX_OCCURRENCES;
         return new PwnedPasswordPolicyProvider(keycloakSession, maxOccurrences);
     }

@@ -1,21 +1,24 @@
 import { ApplicationConfig, APP_INITIALIZER } from '@angular/core';
 import { provideRouter } from '@angular/router';
 import { routes } from './app-routing.module';
-import { KeycloakService } from './security/keycloak/keycloak.service';
+import { provideHttpClient, withInterceptors } from '@angular/common/http';
+import { AuthService } from './security/auth/auth.service';
+import { tokenInterceptor } from './security/auth/auth.interceptor';
 
-export function initializeKeycloak(keycloak: KeycloakService) {
-  return () => keycloak.init();
+function setupAuth(auth: AuthService) {
+  return () => auth.init();
 }
 
 export const appConfig: ApplicationConfig = {
   providers: [
     provideRouter(routes),
-    KeycloakService,
+    provideHttpClient(withInterceptors([tokenInterceptor])),
+    AuthService,
     {
       provide: APP_INITIALIZER,
-      useFactory: initializeKeycloak,
+      useFactory: setupAuth,
+      deps: [AuthService],
       multi: true,
-      deps: [KeycloakService],
     },
   ],
 };
