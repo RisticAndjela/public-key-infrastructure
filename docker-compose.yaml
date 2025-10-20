@@ -48,6 +48,10 @@ services:
     command: ["start-dev"]
     ports:
       - "8080:8080"
+    volumes:
+      - ./providers:/opt/keycloak/providers
+      - ./themes:/opt/keycloak/themes
+      - ./keycloak-pwned-policy/target:/opt/keycloak/providers/custom
     depends_on:
       - postgres-keycloak
     networks:

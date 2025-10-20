@@ -9,13 +9,11 @@ import org.keycloak.policy.PasswordPolicyProviderFactory;
 public class PwnedPasswordPolicyProviderFactory implements PasswordPolicyProviderFactory {
 
     public static final String PROVIDER_ID = "pwned-password-policy";
-    private static final int DEFAULT_MAX_OCCURRENCES = 0;
+    private static final int DEFAULT_MIN_LENGTH = 8;
 
     @Override
-    public PasswordPolicyProvider create(KeycloakSession keycloakSession) {
-        // Use default config or implement logic to fetch config if needed
-        int maxOccurrences = DEFAULT_MAX_OCCURRENCES;
-        return new PwnedPasswordPolicyProvider(keycloakSession, maxOccurrences);
+    public PasswordPolicyProvider create(KeycloakSession session) {
+        return new PwnedPasswordPolicyProvider(session, DEFAULT_MIN_LENGTH);
     }
 
     @Override
@@ -34,7 +32,7 @@ public class PwnedPasswordPolicyProviderFactory implements PasswordPolicyProvide
 
     @Override
     public String getDisplayName() {
-        return "Pwned Password (HaveIBeenPwned)";
+        return "Simple Password Strength Policy";
     }
 
     @Override
@@ -44,7 +42,7 @@ public class PwnedPasswordPolicyProviderFactory implements PasswordPolicyProvide
 
     @Override
     public String getDefaultConfigValue() {
-        return Integer.toString(DEFAULT_MAX_OCCURRENCES);
+        return Integer.toString(DEFAULT_MIN_LENGTH);
     }
 
     @Override
