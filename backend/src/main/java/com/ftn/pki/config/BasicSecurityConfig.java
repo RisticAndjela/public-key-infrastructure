@@ -38,7 +38,8 @@ public class BasicSecurityConfig {
         http.oauth2ResourceServer(oauth -> oauth.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtRoleConverter)));
 
         http.authorizeHttpRequests((requests) -> requests
-                // .requestMatchers(HttpMethod.GET, "/api/organizations").hasRole("admin_user")
+                .requestMatchers(HttpMethod.POST, "/api/users/create-ca").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/organizations").permitAll()
                 .anyRequest().authenticated()
         );
 
