@@ -1,10 +1,9 @@
 package com.ftn.pki.services.organizations;
 
-import com.ftn.pki.dto.ogranizations.SimpleOrganizationDTO;
+import com.ftn.pki.dto.ogranizations.OrganizationDTO;
 import com.ftn.pki.models.organizations.Organization;
 import com.ftn.pki.repositories.organizations.OrganizationRepository;
 import com.ftn.pki.utils.crypto.AESUtils;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -31,11 +30,9 @@ public class OrganizationService {
         return organizationRepository.findByName(name);
     }
 
-    public List<SimpleOrganizationDTO> findAllSimpleDTO() {
+    public List<OrganizationDTO> findAllDTO() {
         List<Organization> organizations = organizationRepository.findAll();
-        return organizations.stream()
-                .map(org -> new SimpleOrganizationDTO(org.getId(), org.getName()))
-                .toList();
+        return organizations.stream().map(org -> new OrganizationDTO(org.getId(), org.getName())).toList();
     }
 
     public Organization save(Organization data) {

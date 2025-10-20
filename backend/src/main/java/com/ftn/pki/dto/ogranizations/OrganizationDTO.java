@@ -11,7 +11,7 @@ import java.util.UUID;
 @AllArgsConstructor
 @Getter
 @Setter
-public class SimpleOrganizationDTO {
+public class OrganizationDTO {
     private UUID id;
     private String name;
 }
