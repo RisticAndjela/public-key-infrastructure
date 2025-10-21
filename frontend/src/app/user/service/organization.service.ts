@@ -7,7 +7,7 @@ import { Organization } from '../model/organization.model';
 @Injectable({ providedIn: 'root' })
 export class OrganizationService {
   private http = inject(HttpClient);
-  private apiUrl = `${environment.baseUrl}/organizations`;
+  private apiUrl = `${environment.serverUrl}/organizations`;
 
   getAll(): Observable<Organization[]> {
     return this.http.get<Organization[]>(this.apiUrl);

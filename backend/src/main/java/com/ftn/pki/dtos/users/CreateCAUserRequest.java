@@ -1,4 +1,4 @@
-package com.ftn.pki.dto.users;
+package com.ftn.pki.dtos.users;
 
 
 import lombok.AllArgsConstructor;
@@ -10,7 +10,7 @@ import lombok.Setter;
 @AllArgsConstructor
 @Getter
 @Setter
-public class CreateCAUserDTO {
+public class CreateCAUserRequest {
     private String email;
     private String name;
     private String surname;

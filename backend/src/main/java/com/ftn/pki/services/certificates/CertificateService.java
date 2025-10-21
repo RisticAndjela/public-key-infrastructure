@@ -1,0 +1,363 @@
+package com.ftn.pki.services.certificates;
+
+import com.ftn.pki.dtos.certificates.*;
+import com.ftn.pki.models.certificates.*;
+import com.ftn.pki.models.certificates.Certificate;
+import com.ftn.pki.models.organizations.Organization;
+import com.ftn.pki.models.users.User;
+import com.ftn.pki.models.users.UserRole;
+import com.ftn.pki.repositories.certificates.CertificateRepository;
+import com.ftn.pki.services.organizations.OrganizationService;
+import com.ftn.pki.services.users.UserService;
+import com.ftn.pki.utils.certificates.CertificateUtils;
+import com.ftn.pki.utils.crypto.AESUtils;
+import com.ftn.pki.utils.crypto.RSAUtils;
+
+import jakarta.transaction.Transactional;
+import org.apache.tomcat.util.http.fileupload.ByteArrayOutputStream;
+import org.bouncycastle.asn1.x500.X500Name;
+import org.bouncycastle.asn1.x500.X500NameBuilder;
+import org.bouncycastle.asn1.x500.style.BCStyle;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+import javax.crypto.SecretKey;
+import java.math.BigInteger;
+import java.security.*;
+import java.security.cert.X509Certificate;
+import java.util.*;
+
+import static com.ftn.pki.utils.certificates.CertificateUtils.getRDNValue;
+
+@Service
+public class CertificateService {
+
+    private final CertificateRepository certificateRepository;
+    private final AESUtils aesUtils;
+    private final UserService userService;
+    private final SecretKey masterKey;
+    private final OrganizationService organizationService;
+
+    @Autowired
+    public CertificateService(CertificateRepository certificateRepository,
+                              AESUtils aesUtils, UserService userService,
+                              @Value("${MASTER_KEY}") String base64MasterKey, OrganizationService organizationService) {
+        this.certificateRepository = certificateRepository;
+        this.aesUtils = aesUtils;
+        this.userService = userService;
+        this.masterKey = AESUtils.secretKeyFromBase64(base64MasterKey);
+        this.organizationService = organizationService;
+    }
+
+    @Transactional
+    public CreateCertifcateResponse createCertificate(CreateCertificateRequest dto) throws Exception {
+        Certificate certificateEntity = getCertificateEntity(dto);
+
+        certificateRepository.save(certificateEntity);
+
+        return new CreateCertifcateResponse(
+                certificateEntity.getId(),
+                certificateEntity.getType(),
+                dto.getCommonName(),
+                dto.getSurname(),
+                dto.getGivenName(),
+                dto.getOrganization(),
+                dto.getOrganizationalUnit(),
+                dto.getCountry(),
+                dto.getEmail(),
+                certificateEntity.getStartDate(),
+                certificateEntity.getEndDate(),
+                dto.getExtensions()
+        );
+    }
+
+    @Transactional
+    public byte[] createEECertificate(CreateEECertificateRequest dto) throws Exception {
+        dto.setType(CertificateType.END_ENTITY);
+        Certificate certificateEntity = getCertificateEntity(dto);
+        byte[] keystore = getKeystoreBytes(certificateEntity,
+                dto.getKeyStoreFormat(),
+                dto.getPassword(),
+                dto.getAlias());
+        certificateEntity.setIv(null);
+        certificateEntity.setPrivateKeyEncrypted(null);
+        certificateRepository.save(certificateEntity);
+
+        return keystore;
+    }
+
+    private Certificate getCertificateEntity(CreateCertificateRequest dto) throws Exception {
+        User currentUser = userService.getLoggedUser();
+        Organization organization = null;
+        if (currentUser.getRole() == UserRole.ROLE_admin && dto.getType() == CertificateType.INTERMEDIATE) {
+            organization = organizationService.findOrganizationByName(dto.getAssignToOrganizationName());
+        } else {
+            organization = currentUser.getOrganization();
+        }
+        if (organization == null) {
+            throw new IllegalArgumentException("User does not belong to any organization");
+        }
+
+        if (dto.getStartDate().after(dto.getEndDate())) {
+            throw new IllegalArgumentException("Start date must be before end date");
+        }
+
+        // --- 2. Generate Subject key pair ---
+        KeyPair subjectKeyPair = RSAUtils.generateRSAKeyPair();
+        PublicKey subjectPublicKey = subjectKeyPair.getPublic();
+        PrivateKey subjectPrivateKey = subjectKeyPair.getPrivate();
+
+        // --- 3. Generate X500Name for Subject ---
+        X500Name subjectX500 = new X500NameBuilder()
+                .addRDN(BCStyle.CN, dto.getCommonName())
+                .addRDN(BCStyle.SURNAME, dto.getSurname())
+                .addRDN(BCStyle.GIVENNAME, dto.getGivenName())
+                .addRDN(BCStyle.O, dto.getOrganization())
+                .addRDN(BCStyle.OU, dto.getOrganizationalUnit())
+                .addRDN(BCStyle.C, dto.getCountry())
+                .addRDN(BCStyle.E, dto.getEmail())
+                .build();
+
+        Subject subject = new Subject(subjectPublicKey, subjectX500);
+
+        // --- 4. Fetch Issuer ---
+        Issuer issuer;
+        Certificate issuerCertEntity = null;
+        if (dto.getIssuerCertificateId().isEmpty() && dto.getType() == CertificateType.ROOT) {
+            // Self-signed Root
+            issuer = new Issuer(subjectPrivateKey, subjectPublicKey,subjectX500);
+        } else {
+            if (dto.getIssuerCertificateId() == null) {
+                throw new IllegalArgumentException("Issuer certificate ID must be provided for non-root certificates");
+            }
+            issuerCertEntity = certificateRepository.findById(UUID.fromString(dto.getIssuerCertificateId()))
+                    .orElseThrow(() -> new IllegalArgumentException("Issuer certificate not found"));
+
+            if (!isCertificateValid(issuerCertEntity)) {
+                throw new IllegalArgumentException("Issuer certificate is not valid");
+            }
+
+            if (issuerCertEntity.getEndDate().before(dto.getEndDate())) {
+                throw new IllegalArgumentException("Issuer certificate expires before the new certificate");
+            }
+
+            if (issuerCertEntity.getStartDate().after(dto.getStartDate())) {
+                throw new IllegalArgumentException("Issuer certificate is not valid at the start date of the new certificate");
+            }
+
+            X509Certificate issuerCert = issuerCertEntity.getX509Certificate();
+            PrivateKey decriptedIssuerPrivateKey = loadAndDecryptPrivateKey(issuerCertEntity);
+            issuer = new Issuer(decriptedIssuerPrivateKey, issuerCert.getPublicKey(), CertificateUtils.getSubjectX500Name(issuerCert));
+        }
+
+        if (dto.getType() == CertificateType.END_ENTITY && dto.getIssuerCertificateId() == null) {
+            throw new IllegalArgumentException("End-entity certificate must have an issuer");
+        }
+
+        if (issuerCertEntity != null && issuerCertEntity.getType() == CertificateType.END_ENTITY) {
+            throw new IllegalArgumentException("End-entity certificates cannot act as issuers");
+        }
+
+        // --- 5. Generate X509 certificate ---
+        X509Certificate x509Certificate = CertificateUtils.generateCertificate(
+                subject,
+                issuer,
+                dto.getIssuerCertificateId(),
+                dto.getStartDate(),
+                dto.getEndDate(),
+                new BigInteger(64, new SecureRandom()).toString(), // Serial number
+                dto.getType(),
+                dto.getExtensions()
+        );
+
+        // --- 6. Encrypt private key with DEK-om ---
+        SecretKey organizationDEK = getOrganizationDEK(organization);
+        AESUtils.AESGcmEncrypted encryptedSubjectPrivateKey = aesUtils.encrypt(organizationDEK,
+                Base64.getEncoder().encodeToString(subjectPrivateKey.getEncoded()));
+
+        // --- 7. Create Certificate ---
+        Certificate certificateEntity = new Certificate();
+        certificateEntity.setOrganization(organization);
+        certificateEntity.setType(dto.getType());
+        certificateEntity.setSerialNumber(x509Certificate.getSerialNumber().toString());
+        certificateEntity.setStartDate(dto.getStartDate());
+        certificateEntity.setEndDate(dto.getEndDate());
+        certificateEntity.setCertificateEncoded(x509Certificate.getEncoded());
+        certificateEntity.setPrivateKeyEncrypted(Base64.getDecoder().decode(encryptedSubjectPrivateKey.getCiphertext()));
+        certificateEntity.setIv(encryptedSubjectPrivateKey.getIv());
+        certificateEntity.setIssuer(issuerCertEntity);
+        certificateEntity.setRevoked(false);
+        certificateEntity.setUser(currentUser);
+
+        if (issuerCertEntity!=null && !isCertificateValid(certificateEntity.getIssuer())) {
+            throw new IllegalArgumentException("Issuer certificate is not valid");
+        }
+
+        if (!CertificateUtils.isValidSignature(x509Certificate,
+                certificateEntity.getIssuer() != null ? certificateEntity.getIssuer().getX509Certificate() : x509Certificate)) {
+            throw new IllegalArgumentException("Certificate signature is not valid");
+        }
+
+        return certificateEntity;
+    }
+
+    public Collection<SimpleCertificateResponse> findAllCAForMyOrganization() {
+        User currentUser = userService.getLoggedUser();
+        List<CertificateType> caTypes = List.of(CertificateType.ROOT, CertificateType.INTERMEDIATE);
+        List<Certificate> certs = null;
+        if (currentUser.getRole() == UserRole.ROLE_admin) {
+            certs = certificateRepository.findAllByTypeIn(caTypes);
+        }else {
+            certs = certificateRepository.findAllByOrganizationAndTypeIn(currentUser.getOrganization(), caTypes);
+        }
+        ArrayList<SimpleCertificateResponse> dtos = new ArrayList<>();
+        for (Certificate cert : certs) {
+            try {
+                if (isCertificateValid(cert)) {
+                    X500Name subjectX500Name = CertificateUtils.getSubjectX500Name(cert.getX509Certificate());
+                    dtos.add(new SimpleCertificateResponse(
+                            cert.getId(),
+                            cert.getType(), // CertificateType
+                            getRDNValue(subjectX500Name, BCStyle.CN),
+                            getRDNValue(subjectX500Name, BCStyle.SURNAME),
+                            getRDNValue(subjectX500Name, BCStyle.GIVENNAME),
+                            getRDNValue(subjectX500Name, BCStyle.O),
+                            getRDNValue(subjectX500Name, BCStyle.OU),
+                            getRDNValue(subjectX500Name, BCStyle.C),
+                            getRDNValue(subjectX500Name, BCStyle.E),
+                            cert.getStartDate(),
+                            cert.getEndDate(),
+                            cert.isRevoked(),
+                            isCertificateValid(cert),
+                            cert.getSerialNumber(),
+                            cert.getUser().getRole() != UserRole.ROLE_ee_user
+                            )
+                    );
+                }
+            } catch (Exception e) {
+                throw new RuntimeException("Error validating certificate: " + e.getMessage());
+            }
+        }
+        return dtos;
+    }
+
+    public boolean isCertificateValid(Certificate certificate) throws Exception {
+        X509Certificate x509Certificate = certificate.getX509Certificate();
+        boolean isValidByDate = CertificateUtils.isValidByDate(x509Certificate);
+        boolean isSignatureValid = CertificateUtils.isValidSignature(x509Certificate,
+                certificate.getIssuer() != null ? certificate.getIssuer().getX509Certificate() : x509Certificate);
+        boolean isRevoked = certificate.isRevoked();
+
+        if (certificate.getType() == CertificateType.ROOT) {
+            return isValidByDate && isSignatureValid && !isRevoked;
+        }
+
+        boolean isIssuerValid = isCertificateValid(certificate.getIssuer());
+        return isValidByDate && isSignatureValid && !isRevoked && isIssuerValid;
+    }
+
+    private SecretKey getOrganizationDEK(Organization organization) throws Exception {
+        String encryptedDEKBase64 = organization.getEncryptedOrgKey();
+        AESUtils.AESGcmEncrypted encrypted = new AESUtils.AESGcmEncrypted(encryptedDEKBase64, organization.getOrgKeyIv());
+        String dekBase64 = aesUtils.decrypt(masterKey, encrypted);
+        return AESUtils.secretKeyFromBase64(dekBase64);
+    }
+
+    public PrivateKey loadAndDecryptPrivateKey(Certificate certEntity) throws Exception {
+        byte[] encryptedPrivateKeyBytes = certEntity.getPrivateKeyEncrypted();
+        String iv = certEntity.getIv();
+
+        SecretKey organizationDEK = getOrganizationDEK(certEntity.getOrganization());
+        AESUtils.AESGcmEncrypted encryptedPrivateKey = new AESUtils.AESGcmEncrypted(
+                Base64.getEncoder().encodeToString(encryptedPrivateKeyBytes), iv);
+
+        String decryptedPrivateKeyBase64 = aesUtils.decrypt(organizationDEK, encryptedPrivateKey);
+        return RSAUtils.base64ToPrivateKey(decryptedPrivateKeyBase64);
+
+    }
+
+    @Transactional
+    public Collection<SimpleCertificateResponse> findAllSimple(){
+        List<Certificate> certs = null;
+        ArrayList<SimpleCertificateResponse> dtos = new ArrayList<>();
+        switch (userService.getLoggedUser().getRole()){
+            case ROLE_ee_user -> {
+                certs = certificateRepository.findAllByUserId(userService.getLoggedUser().getId());
+            }
+            case ROLE_ca_user -> {
+                certs = certificateRepository.findAllByOrganizationId(userService.getLoggedUser().getOrganization().getId());
+            }
+            case ROLE_admin -> {
+                certs = certificateRepository.findAll();
+            }
+            default -> throw new IllegalArgumentException("Unknown role");
+        }
+
+        for (Certificate cert : certs) {
+            try {
+                X500Name subjectX500Name = CertificateUtils.getSubjectX500Name(cert.getX509Certificate());
+                SimpleCertificateResponse dto = new SimpleCertificateResponse(
+                        cert.getId(),
+                        cert.getType(), // CertificateType
+                        getRDNValue(subjectX500Name, BCStyle.CN),
+                        getRDNValue(subjectX500Name, BCStyle.SURNAME),
+                        getRDNValue(subjectX500Name, BCStyle.GIVENNAME),
+                        getRDNValue(subjectX500Name, BCStyle.O),
+                        getRDNValue(subjectX500Name, BCStyle.OU),
+                        getRDNValue(subjectX500Name, BCStyle.C),
+                        getRDNValue(subjectX500Name, BCStyle.E),
+                        cert.getStartDate(),
+                        cert.getEndDate(),
+                        cert.isRevoked(),
+                        isCertificateValid(cert),
+                        cert.getSerialNumber(),
+                        cert.getUser().getRole() != UserRole.ROLE_ee_user
+                );
+                dtos.add(dto);
+            } catch (Exception e) {
+                throw new RuntimeException("Error validating certificate: " + e.getMessage());
+            }
+        }
+        return dtos;
+    }
+
+
+    private byte[] getKeystoreBytes(Certificate cert, KEYSTOREDOWNLOADFORMAT format, String password, String alias) throws Exception {
+        User currentUser = userService.getLoggedUser();
+        if (currentUser.getRole() == UserRole.ROLE_ee_user) {
+            if (!cert.getUser().getId().equals(currentUser.getId())) {
+                throw new IllegalArgumentException("EE users can only download their own certificates");
+            }
+        } else if (currentUser.getRole() == UserRole.ROLE_ca_user) {
+            if (!cert.getOrganization().getId().equals(currentUser.getOrganization().getId())) {
+                throw new IllegalArgumentException("CA users can only download certificates within their organization");
+            }
+        } else if (currentUser.getRole() != UserRole.ROLE_admin) {
+            throw new IllegalArgumentException("Unknown user role");
+        }
+
+        X509Certificate x509Certificate = cert.getX509Certificate();
+        PrivateKey privateKey = loadAndDecryptPrivateKey(cert);
+
+        KeyStore ks = switch (format) {
+            case PKCS12 -> KeyStore.getInstance("PKCS12");
+            case JKS -> KeyStore.getInstance("JKS");
+            default -> throw new IllegalArgumentException("Unknown format: " + format);
+        };
+        ks.load(null, null);
+        ks.setKeyEntry(
+                alias,
+                privateKey,
+                password.toCharArray(),
+                new java.security.cert.Certificate[]{x509Certificate}
+        );
+
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        ks.store(baos, password.toCharArray());
+
+
+        return baos.toByteArray();
+    }
+
+}
+

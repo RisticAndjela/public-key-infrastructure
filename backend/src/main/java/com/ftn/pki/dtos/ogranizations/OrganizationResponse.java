@@ -1,4 +1,4 @@
-package com.ftn.pki.dto.ogranizations;
+package com.ftn.pki.dtos.ogranizations;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;

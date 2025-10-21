@@ -4,24 +4,24 @@ import { from } from 'rxjs';
 import { switchMap } from 'rxjs/operators';
 import { AuthService } from './auth.service';
 
-export const tokenInterceptor: HttpInterceptorFn = (request, next) => {
+export const tokenInterceptor: HttpInterceptorFn = (req, next) => {
   const auth = inject(AuthService);
 
-  if (!auth || !auth.isLoggedIn()) {
-    return next(request);
+  if (!auth || !auth.isReady()) {
+    return next(req);
   }
 
   return from(auth.updateTokenIfNeeded()).pipe(
-    switchMap((jwt) => {
-      if (!jwt) {
-        return next(request);
+    switchMap((token) => {
+      if (token) {
+        const authReq = req.clone({
+          setHeaders: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        return next(authReq);
       }
-
-      const modifiedRequest = request.clone({
-        setHeaders: { Authorization: `Bearer ${jwt}` },
-      });
-
-      return next(modifiedRequest);
+      return next(req);
     })
   );
 };

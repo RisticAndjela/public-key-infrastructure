@@ -1,6 +1,6 @@
 package com.ftn.pki.services.users;
 
-import com.ftn.pki.dto.users.CreateCAUserDTO;
+import com.ftn.pki.dtos.users.CreateCAUserRequest;
 import com.ftn.pki.models.users.User;
 import com.ftn.pki.repositories.users.UserRepository;
 import jakarta.ws.rs.NotFoundException;
@@ -49,7 +49,7 @@ public class UserService {
         return this.userRepository.save(data);
     }
 
-    public void createCAUser(CreateCAUserDTO dto) {
+    public void createCAUser(CreateCAUserRequest dto) {
         RealmResource realmResource = keycloak.realm(realm);
 
         List<UserRepresentation> existingUsers = realmResource.users().search(dto.getEmail());
