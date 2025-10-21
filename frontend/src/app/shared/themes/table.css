@@ -1,0 +1,83 @@
+.table-container {
+  background-color: #eaf0f5; /* svetla bež, uklapa se sa formama */
+  padding: 1.5rem;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 1200px;
+  overflow-x: auto;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+  font-family: 'Roboto', sans-serif;
+}
+
+table {
+  width: 100%;
+  min-width: 1000px;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+thead {
+  background-color: #1e1e2f; /* tamno, kao navbar */
+  color: #eaf0f5;           /* svetla bež za kontrast */
+}
+
+th,
+td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #e0e0e0;
+  text-align: left;
+}
+
+tbody tr:hover {
+  background-color: #e0e0f2; /* svetloplavkasto za hover, blago i prijatno */
+  transition: background-color 0.3s ease;
+}
+
+.table-container button {
+  padding: 0.4rem 0.8rem;
+  border-radius: 6px;
+  border: none;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  margin-right: 0.5rem;
+  transition: background-color 0.3s ease, transform 0.2s ease;
+}
+
+.table-container button.edit {
+  background-color: #2a9d8f; /* ujednačeno sa dugmadima u formi */
+  color: #eaf0f5;
+}
+
+.table-container button.edit:hover {
+  background-color: #21867a;
+  transform: translateY(-1px);
+}
+
+.table-container button.delete {
+  background-color: #e63946; /* crveno za opasne akcije */
+  color: #eaf0f5;
+}
+
+.table-container button.delete:hover {
+  background-color: #d62828;
+  transform: translateY(-1px);
+}
+
+.table-container button:disabled {
+  background-color: #cccccc !important; /* svetlo sivo */
+  color: #666666 !important;           /* tamnije za kontrast */
+  cursor: not-allowed !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.table-container button.edit:disabled {
+  background-color: #b0c4de !important; /* sivo-plavo */
+  color: #f0f0f0 !important;
+}
+
+.table-container button.delete:disabled {
+  background-color: #d3a6a6 !important; /* sivo-crveno */
+  color: #f0f0f0 !important;
+}

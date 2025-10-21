@@ -62,12 +62,12 @@ export class AuthService {
   }
 
   getRoles(): string[] {
-    const token = this.keycloak?.token;
-    if (!token) return [];
-    const payload = JSON.parse(atob(token.split('.')[1]));
-    const realmRoles = payload.realm_access?.roles ?? [];
-    const clientRoles = payload.resource_access?.[environment.keycloakClient]?.roles ?? [];
-    return [...realmRoles, ...clientRoles];
+    const token = this.keycloak?.token
+    if (token) {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      return payload.resource_access?.['pki-frontend']?.roles || []
+    }
+    return []
   }
 
   isReady(): boolean {

@@ -5,6 +5,7 @@ import {environment} from '../../../environments/environment';
 import {
   CreateCertificateDto,
   CreatedCertificateDto, CreateEECertificateDto,
+  DownloadRequestDTO,
   SimpleCertificate
 } from '../../certificate/model/certificate.model';
 
@@ -25,12 +26,12 @@ export class CertificateService {
       return this.http.get<SimpleCertificate[]>(`${this.apiUrl}/applicable-ca`);
   }
 
+  downloadCertificate(id: string, dto: DownloadRequestDTO): Observable<Blob> {
+    return this.http.post(`${this.apiUrl}/download`, dto, { responseType: 'blob' });
+  }
+
   createEECertificate(dto: CreateEECertificateDto): Observable<Blob> {
     return this.http.post(`${this.apiUrl}/ee`, dto, { responseType: 'blob' });
   }
 
-  uploadCSR(formDataToSend: FormData): Observable<Blob> {
-    return this.http.post(`${this.apiUrl}/upload-csr`, formDataToSend, { responseType: 'blob' });
-
-  }
 }

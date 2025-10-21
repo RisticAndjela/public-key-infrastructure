@@ -1,0 +1,92 @@
+/* Reset i osnovni stil */
+html, body {
+  height: 100%;
+  margin: 0;
+  font-family: 'Roboto', sans-serif;
+  background-color: #c7c5d4; /* svetlo sivoljubičasta, uklapa se sa navbarom */
+  color: #1e1e2f; /* tamno za tekst */
+}
+
+/* Dashboard container */
+.dashboard-container {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - 60px); /* uzima u obzir navbar */
+  width: 100%;
+  padding: 2rem;
+  box-sizing: border-box;
+}
+
+/* Naslovi */
+h1 {
+  text-align: center;
+  color: #1e1e2f; /* tamno plavo-sivo, uklapa se sa navbarom */
+  margin-bottom: 2rem;
+}
+
+/* Kolone */
+.dashboard-column {
+  width: 80%;
+  display: contents; /* čini da deca kolone ne uvode dodatni blok */
+}
+
+/* Forma */
+.form {
+  background-color: #eaf0f5; /* svetla bež boja */
+  padding: 2rem;
+  border-radius: 12px;
+  width: 70%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+}
+
+/* Form input i select */
+input, select {
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  font-size: 1rem;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+input:focus, select:focus {
+  outline: none;
+  border-color: #2a9d8f;
+  box-shadow: 0 0 0 3px rgba(42, 157, 143, 0.2);
+}
+
+/* Dugmad */
+.form button {
+  align-self: flex-start;
+  padding: 0.75rem 1.5rem;
+  background-color: #2a9d8f;
+  color: #eaf0f5;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 1rem;
+  transition: background-color 0.3s ease, transform 0.2s ease;
+}
+
+.form button:hover {
+  background-color: #21867a;
+  transform: translateY(-1px);
+}
+
+/* Greške */
+.error {
+  color: #e63946;
+  font-size: small;
+}
+
+/* Disabled dugmad */
+button:disabled, .form button:disabled {
+  background-color: #ccc;
+  color: #666;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}

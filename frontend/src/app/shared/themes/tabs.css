@@ -1,0 +1,37 @@
+.tabs {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.tabs button {
+  padding: 0.75rem 1.5rem;
+  border-radius: 10px;
+  border: none;
+  background: #2a9d8f;      /* sekundarna boja, skladna sa dugmadima formi */
+  color: #eaf0f5;           /* svetla bež za kontrast */
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.3s ease, transform 0.2s ease;
+}
+
+.tabs button.active {
+  background: #1e1e2f;      /* primarna boja, kao navbar */
+  box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+}
+
+.tabs button:hover {
+  background: #1e1e2f;      /* hover ujednačen sa aktivnim tabom */
+  transform: translateY(-1px);
+}
+
+.tab-content {
+  flex: 1; 
+  display: flex;
+  justify-content: center;
+  align-items: flex-start; 
+  width: 100%;
+  padding-bottom: 2rem;
+  box-sizing: border-box;
+}

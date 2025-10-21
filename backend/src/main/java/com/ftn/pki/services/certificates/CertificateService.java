@@ -10,9 +10,8 @@ import com.ftn.pki.repositories.certificates.CertificateRepository;
 import com.ftn.pki.services.organizations.OrganizationService;
 import com.ftn.pki.services.users.UserService;
 import com.ftn.pki.utils.certificates.CertificateUtils;
-import com.ftn.pki.utils.crypto.AESUtils;
-import com.ftn.pki.utils.crypto.RSAUtils;
-
+import com.ftn.pki.utils.cryptography.AESUtils;
+import com.ftn.pki.utils.cryptography.RSAUtils;
 import jakarta.transaction.Transactional;
 import org.apache.tomcat.util.http.fileupload.ByteArrayOutputStream;
 import org.bouncycastle.asn1.x500.X500Name;
@@ -50,12 +49,12 @@ public class CertificateService {
     }
 
     @Transactional
-    public CreateCertifcateResponse createCertificate(CreateCertificateRequest dto) throws Exception {
+    public CreatedCertificateDTO createCertificate(CreateCertificateDTO dto) throws Exception {
         Certificate certificateEntity = getCertificateEntity(dto);
 
         certificateRepository.save(certificateEntity);
 
-        return new CreateCertifcateResponse(
+        return new CreatedCertificateDTO(
                 certificateEntity.getId(),
                 certificateEntity.getType(),
                 dto.getCommonName(),
@@ -72,7 +71,7 @@ public class CertificateService {
     }
 
     @Transactional
-    public byte[] createEECertificate(CreateEECertificateRequest dto) throws Exception {
+    public byte[] createEECertificate(CreateEECertificateDTO dto) throws Exception {
         dto.setType(CertificateType.END_ENTITY);
         Certificate certificateEntity = getCertificateEntity(dto);
         byte[] keystore = getKeystoreBytes(certificateEntity,
@@ -86,7 +85,7 @@ public class CertificateService {
         return keystore;
     }
 
-    private Certificate getCertificateEntity(CreateCertificateRequest dto) throws Exception {
+    private Certificate getCertificateEntity(CreateCertificateDTO dto) throws Exception {
         User currentUser = userService.getLoggedUser();
         Organization organization = null;
         if (currentUser.getRole() == UserRole.ROLE_admin && dto.getType() == CertificateType.INTERMEDIATE) {
@@ -201,7 +200,7 @@ public class CertificateService {
         return certificateEntity;
     }
 
-    public Collection<SimpleCertificateResponse> findAllCAForMyOrganization() {
+    public Collection<SimpleCertificateDTO> findAllCAForMyOrganization() {
         User currentUser = userService.getLoggedUser();
         List<CertificateType> caTypes = List.of(CertificateType.ROOT, CertificateType.INTERMEDIATE);
         List<Certificate> certs = null;
@@ -210,12 +209,12 @@ public class CertificateService {
         }else {
             certs = certificateRepository.findAllByOrganizationAndTypeIn(currentUser.getOrganization(), caTypes);
         }
-        ArrayList<SimpleCertificateResponse> dtos = new ArrayList<>();
+        ArrayList<SimpleCertificateDTO> dtos = new ArrayList<>();
         for (Certificate cert : certs) {
             try {
                 if (isCertificateValid(cert)) {
                     X500Name subjectX500Name = CertificateUtils.getSubjectX500Name(cert.getX509Certificate());
-                    dtos.add(new SimpleCertificateResponse(
+                    dtos.add(new SimpleCertificateDTO(
                             cert.getId(),
                             cert.getType(), // CertificateType
                             getRDNValue(subjectX500Name, BCStyle.CN),
@@ -277,9 +276,9 @@ public class CertificateService {
     }
 
     @Transactional
-    public Collection<SimpleCertificateResponse> findAllSimple(){
+    public Collection<SimpleCertificateDTO> findAllSimple(){
         List<Certificate> certs = null;
-        ArrayList<SimpleCertificateResponse> dtos = new ArrayList<>();
+        ArrayList<SimpleCertificateDTO> dtos = new ArrayList<>();
         switch (userService.getLoggedUser().getRole()){
             case ROLE_ee_user -> {
                 certs = certificateRepository.findAllByUserId(userService.getLoggedUser().getId());
@@ -296,7 +295,7 @@ public class CertificateService {
         for (Certificate cert : certs) {
             try {
                 X500Name subjectX500Name = CertificateUtils.getSubjectX500Name(cert.getX509Certificate());
-                SimpleCertificateResponse dto = new SimpleCertificateResponse(
+                SimpleCertificateDTO dto = new SimpleCertificateDTO(
                         cert.getId(),
                         cert.getType(), // CertificateType
                         getRDNValue(subjectX500Name, BCStyle.CN),
@@ -321,6 +320,12 @@ public class CertificateService {
         return dtos;
     }
 
+    public byte[] getKeyStoreForDownload(DownloadRequestDTO dto) throws Exception {
+        Certificate cert = certificateRepository.findById(dto.getCertificateId())
+                .orElseThrow(() -> new IllegalArgumentException("Certificate not found"));
+
+        return getKeystoreBytes(cert, dto.getFormat(), dto.getPassword(), dto.getAlias());
+    }
 
     private byte[] getKeystoreBytes(Certificate cert, KEYSTOREDOWNLOADFORMAT format, String password, String alias) throws Exception {
         User currentUser = userService.getLoggedUser();

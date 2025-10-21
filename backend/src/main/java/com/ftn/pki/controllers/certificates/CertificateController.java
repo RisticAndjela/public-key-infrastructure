@@ -26,59 +26,63 @@ public class CertificateController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ca_user','admin_user')")
-    public ResponseEntity<CreateCertifcateResponse> createCertificate(@RequestBody CreateCertificateRequest dto) {
+    @PreAuthorize("hasAnyRole('ca_user','admin')")
+    public ResponseEntity<CreatedCertificateDTO> createCertificate(@RequestBody CreateCertificateDTO dto) {
         try {
-            CreateCertifcateResponse certificate = certificateService.createCertificate(dto);
+            CreatedCertificateDTO certificate = certificateService.createCertificate(dto);
             return ResponseEntity.ok(certificate);
         } catch (IllegalArgumentException e) {
-            e.printStackTrace();
             return ResponseEntity.badRequest().body(null);
         } catch (Exception e) {
-            e.printStackTrace();
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(null);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
         }
     }
 
     @PostMapping("/ee")
     @PreAuthorize("hasRole('ee_user')")
-    public ResponseEntity<byte[]> createEECertificate(@RequestBody CreateEECertificateRequest dto) {
+    public ResponseEntity<byte[]> createEECertificate(@RequestBody CreateEECertificateDTO dto) {
         try {
             byte[] keystore = certificateService.createEECertificate(dto);
             String fileName = "certificate." + (dto.getKeyStoreFormat() == KEYSTOREDOWNLOADFORMAT.PKCS12 ? "p12" : "jks");
-
-            return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"")
-                    .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                    .body(keystore);
+            return ResponseEntity.ok().header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"").contentType(MediaType.APPLICATION_OCTET_STREAM).body(keystore);
         } catch (IllegalArgumentException e) {
-            e.printStackTrace();
             return ResponseEntity.badRequest().body(null);
         } catch (Exception e) {
-            e.printStackTrace();
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(null);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
         }
     }
 
     @GetMapping("/applicable-ca")
     @Transactional(readOnly = true)
-    @PreAuthorize("hasAnyRole('ca_user','ee_user','admin_user')")
-    public ResponseEntity<Collection<SimpleCertificateResponse>> getAllCAForOrganization() {
+    @PreAuthorize("hasAnyRole('ca_user','ee_user','admin')")
+    public ResponseEntity<Collection<SimpleCertificateDTO>> getAllCAForOrganization() {
         try {
-            Collection<SimpleCertificateResponse> caCertificates = certificateService.findAllCAForMyOrganization();
+            Collection<SimpleCertificateDTO> caCertificates = certificateService.findAllCAForMyOrganization();
             return ResponseEntity.ok(caCertificates);
         } catch (Exception e) {
-            e.printStackTrace();
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .build();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
 
     @GetMapping("/all")
-    @PreAuthorize("hasAnyRole('ca_user','ee_user','admin_user')")
-    public ResponseEntity<Collection<SimpleCertificateResponse>> getAll(){
+    @PreAuthorize("hasAnyRole('ca_user','ee_user','admin')")
+    public ResponseEntity<Collection<SimpleCertificateDTO>> getAll(){
         return ResponseEntity.ok(certificateService.findAllSimple());
     }
+
+    @PostMapping("/download")
+    @PreAuthorize("hasAnyRole('ca_user','ee_user','admin')")
+    public ResponseEntity<byte[]> downloadCertificate(@RequestBody DownloadRequestDTO dto) {
+        byte[] bytes = null;
+        try {
+            bytes = certificateService.getKeyStoreForDownload(dto);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+
+        String fileName = "certificate." + (dto.getFormat() == KEYSTOREDOWNLOADFORMAT.PKCS12 ? "p12" : "jks");
+
+        return ResponseEntity.ok().header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"").contentType(MediaType.APPLICATION_OCTET_STREAM).body(bytes);
+    }
+
 }

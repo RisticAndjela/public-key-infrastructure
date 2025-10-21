@@ -19,9 +19,9 @@ public class Organization {
     private String name;
 
     @Column(nullable = false)
-    private String encryptedOrgKey;
+    private String encryptedOrgKey; // DEK encrypted with master (KEK) key, Base64
 
     @Column(nullable = false)
-    private String orgKeyIv;
+    private String orgKeyIv; // IV used with encryption with DEK-a master key, Base64
 
 }

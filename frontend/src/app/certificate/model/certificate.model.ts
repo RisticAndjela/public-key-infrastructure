@@ -1,4 +1,4 @@
-import { Organization } from "../../user/model/organization.model";
+import { Organization } from "./organization.model";
 
 export enum CertificateType{
     'ROOT',
@@ -51,7 +51,6 @@ export interface Certificate {
     certificateEncoded?: string;
     privateKeyEncrypted?: string;
     iv: string;
-    revoked: boolean;
 }
 
 export interface SimpleCertificate {
@@ -66,7 +65,6 @@ export interface SimpleCertificate {
   email: string;
   startDate: Date|null;
   endDate: Date|null;
-  revoked: boolean;
   valid: boolean;
   serialNumber: string;
   downloadable: boolean;
@@ -75,4 +73,11 @@ export interface SimpleCertificate {
 export enum KEYSTOREDOWNLOADFORMAT {
   JKS,
   PKCS12
+}
+
+export interface DownloadRequestDTO {
+  certificateId: string;
+  password: string;
+  alias: string;
+  format: KEYSTOREDOWNLOADFORMAT;
 }

@@ -1,9 +1,10 @@
 package com.ftn.pki.controllers.users;
 
-import com.ftn.pki.dtos.users.CreateCAUserRequest;
+import com.ftn.pki.dtos.users.CreateCAUserDTO;
 import com.ftn.pki.services.users.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -19,8 +20,9 @@ public class UserController {
         this.userService = userService;
     }
 
-    @PostMapping("/ca")
-    public ResponseEntity<String> createCAUser(@RequestBody CreateCAUserRequest dto) {
+    @PostMapping("/create-ca")
+    @PreAuthorize("hasRole('admin')")
+    public ResponseEntity<String> createCAUser(@RequestBody CreateCAUserDTO dto) {
         userService.createCAUser(dto);
         return ResponseEntity.ok().build();
     }

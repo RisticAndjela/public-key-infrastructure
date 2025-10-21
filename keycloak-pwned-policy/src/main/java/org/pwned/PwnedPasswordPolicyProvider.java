@@ -6,59 +6,84 @@ import org.keycloak.models.UserModel;
 import org.keycloak.policy.PasswordPolicyProvider;
 import org.keycloak.policy.PolicyError;
 
-import java.util.Arrays;
-import java.util.List;
-import java.util.regex.Pattern;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.security.MessageDigest;
 
 public class PwnedPasswordPolicyProvider implements PasswordPolicyProvider {
 
-    private final int minLength;
+    private final int maxOccurrences;
     private final KeycloakSession session;
 
-    private static final Pattern UPPERCASE_PATTERN = Pattern.compile(".*[A-Z].*");
-    private static final Pattern DIGIT_PATTERN = Pattern.compile(".*\\d.*");
-    private static final Pattern SPECIAL_CHAR_PATTERN = Pattern.compile(".*[^A-Za-z0-9].*");
-
-    public PwnedPasswordPolicyProvider(KeycloakSession session, int minLength) {
+    public PwnedPasswordPolicyProvider(KeycloakSession session, int maxOccurrences) {
         this.session = session;
-        this.minLength = minLength;
+        this.maxOccurrences = maxOccurrences;
     }
 
     @Override
-    public void close() { }
+    public void close() {
+        // nothing to clean up
+    }
 
+    private static String toSha1Hex(String input) throws Exception {
+        MessageDigest md = MessageDigest.getInstance("SHA-1");
+        byte[] digest = md.digest(input.getBytes("UTF-8"));
+        StringBuilder sb = new StringBuilder();
+        for (byte b : digest) {
+            sb.append(String.format("%02X", b));
+        }
+        return sb.toString();
+    }
+
+    private int queryPwnedCount(String sha1Upper) throws Exception {
+        String prefix = sha1Upper.substring(0, 5);
+        String suffix = sha1Upper.substring(5);
+        String urlStr = "https://api.pwnedpasswords.com/range/" + prefix;
+
+        HttpURLConnection conn = (HttpURLConnection) new URL(urlStr).openConnection();
+        conn.setRequestMethod("GET");
+        conn.setRequestProperty("User-Agent", "Keycloak-PwnedPolicy/1.0");
+        conn.setConnectTimeout(5000);
+        conn.setReadTimeout(5000);
+
+        if (conn.getResponseCode() != 200) {
+            return 0; // fail-open
+        }
+
+        try (BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream()))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                String[] parts = line.split(":");
+                if (parts.length != 2) continue;
+                if (parts[0].equalsIgnoreCase(suffix)) {
+                    return Integer.parseInt(parts[1].trim());
+                }
+            }
+        }
+        return 0;
+    }
+
+    // Main validate method for full context (user + realm)
     @Override
     public PolicyError validate(RealmModel realm, UserModel user, String password) {
-        if (password == null || password.isEmpty()) {
-            return new PolicyError("Password cannot be empty.");
+        try {
+            String sha1 = toSha1Hex(password);
+            int count = queryPwnedCount(sha1);
+            if (count > maxOccurrences) {
+                return new PolicyError("passwordIsPwned", Integer.toString(count));
+            }
+        } catch (Exception e) {
+            System.err.println("Pwned check failed: " + e.getMessage());
         }
-
-        if (password.length() < minLength) {
-            return new PolicyError("Password must be at least " + minLength + " characters long.");
-        }
-
-        if (!UPPERCASE_PATTERN.matcher(password).matches()) {
-            return new PolicyError("Password must contain at least one uppercase letter (A-Z).");
-        }
-
-        if (!DIGIT_PATTERN.matcher(password).matches()) {
-            return new PolicyError("Password must contain at least one digit (0-9).");
-        }
-
-        if (!SPECIAL_CHAR_PATTERN.matcher(password).matches()) {
-            return new PolicyError("Password must contain at least one special character (e.g. !@#$%^&*).");
-        }
-
-        List<String> weakPasswords = Arrays.asList("password", "123456", "qwerty", "admin", "letmein");
-        if (weakPasswords.contains(password.toLowerCase())) {
-            return new PolicyError("This password is too common. Choose a stronger one.");
-        }
-
-        return null;
+        return null; // OK
     }
 
+    // Additional methods required in 26.x
     @Override
     public PolicyError validate(String password, String realmId) {
+        // Simplified version just calls main validate method
         return validate(null, null, password);
     }
 
@@ -67,7 +92,9 @@ public class PwnedPasswordPolicyProvider implements PasswordPolicyProvider {
         try {
             return Integer.parseInt(value);
         } catch (NumberFormatException e) {
-            return 8;
+            return 0; // default
         }
     }
+
+
 }

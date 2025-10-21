@@ -2,7 +2,6 @@ import { Component } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { NavbarComponent } from "./auth/nav-bar/nav-bar.component";
-import { AuthService } from './security/auth/auth.service';
 
 @Component({
   selector: 'app-root',
@@ -12,9 +11,6 @@ import { AuthService } from './security/auth/auth.service';
   standalone: true,
 })
 export class AppComponent {
-  constructor(private authService:AuthService){
-    console.log(this.authService.getToken());
-  }
 }
 
 
