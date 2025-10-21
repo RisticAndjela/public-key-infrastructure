@@ -49,10 +49,6 @@ public class UserService {
         return this.userRepository.save(data);
     }
 
-
-
-
-
     public void createCAUser(CreateCAUserDTO dto) {
         RealmResource realmResource = keycloak.realm(realm);
 
@@ -83,17 +79,14 @@ public class UserService {
 
         // 4. Assign client role "ca"
         try {
-            // Find the client by clientId
             List<ClientRepresentation> clients = realmResource.clients().findByClientId(clientId);
             if (clients.isEmpty()) {
                 throw new RuntimeException("Client '" + clientId + "' not found in realm 'pki'");
             }
             String clientUuid = clients.get(0).getId();
 
-            // Fetch the "ca" role from the client
             RoleRepresentation clientRole = realmResource.clients().get(clientUuid).roles().get("ca_user").toRepresentation();
 
-            // Assign the client role to the user
             realmResource.users().get(userId).roles().clientLevel(clientUuid).add(Collections.singletonList(clientRole));
             System.out.println("Assigned client role 'ca' to user: " + userId);
         } catch (NotFoundException e) {

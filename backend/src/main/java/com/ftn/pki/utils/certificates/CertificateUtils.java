@@ -74,28 +74,6 @@ public class CertificateUtils {
                 );
             }
 
-            // Always add CRL Distribution Point
-            String crlUrl = "https://localhost:8081/api/crl/" + issuerCertificateId + "/latest";
-
-            DistributionPoint[] points = new DistributionPoint[] {
-                    new DistributionPoint(
-                            new DistributionPointName(
-                                    new GeneralNames(
-                                            new GeneralName(GeneralName.uniformResourceIdentifier, crlUrl)
-                                    )
-                            ),
-                            null,
-                            null
-                    )
-            };
-
-
-            certGen.addExtension(
-                    Extension.cRLDistributionPoints,
-                    false,
-                    new CRLDistPoint(points)
-            );
-
             // the optional extensions
             addExtensions(certGen, extensions, issuer.getPublicKey(), subject.getPublicKey());
 

@@ -10,7 +10,7 @@ export class UserService {
   private http = inject(HttpClient);
   private apiUrl = `${environment.serverUrl}/users`;
 
-  createCAUser(dto: CreateCAUserRequest): Observable<any> {
-    return this.http.post<any>(`${this.apiUrl}/create-ca`, dto);
+  createCAUser(dto: CreateCAUserRequest): Observable<string> {
+    return this.http.post<string>(`${this.apiUrl}/create-ca`, dto);
   }
 }

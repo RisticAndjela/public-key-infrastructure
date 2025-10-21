@@ -243,8 +243,7 @@ public class CertificateService {
     public boolean isCertificateValid(Certificate certificate) throws Exception {
         X509Certificate x509Certificate = certificate.getX509Certificate();
         boolean isValidByDate = CertificateUtils.isValidByDate(x509Certificate);
-        boolean isSignatureValid = CertificateUtils.isValidSignature(x509Certificate,
-                certificate.getIssuer() != null ? certificate.getIssuer().getX509Certificate() : x509Certificate);
+        boolean isSignatureValid = CertificateUtils.isValidSignature(x509Certificate,certificate.getIssuer() != null ? certificate.getIssuer().getX509Certificate() : x509Certificate);
         boolean isRevoked = certificate.isRevoked();
 
         if (certificate.getType() == CertificateType.ROOT) {

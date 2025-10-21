@@ -41,10 +41,11 @@ export class RegisterCAComponent {
         this.dialogType = 'info';
         this.showDialog = true;
         form.resetForm();
+        console.log(res);
       },
       error: (err) => {
         console.error(err);
-        this.dialogMessage = `Error when creating CA user.`;
+        this.dialogMessage = err.error?.message || 'An error occurred while creating the CA user.';
         this.dialogType = 'error';
         this.showDialog = true;
       }
